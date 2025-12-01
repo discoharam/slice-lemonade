@@ -1,0 +1,6 @@
+﻿FROM python:3.10-slim
+
+RUN echo "✅ Simple test image built successfully"
+WORKDIR /workspace
+COPY test.txt .
+RUN cat test.txt
