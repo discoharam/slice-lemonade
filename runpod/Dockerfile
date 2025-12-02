@@ -6,7 +6,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6+PTX"
 ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
-ENV BUILDKIT_PROGRESS=plain
 
 # Install system dependencies with cleanup
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -51,14 +50,9 @@ RUN pip3 install --no-cache-dir \
 # Copy handler
 COPY handler.py .
 
-# Test that Demucs loads
-RUN python3 -c "
-import torch
-print('✅ PyTorch version:', torch.__version__)
-print('✅ CUDA available:', torch.cuda.is_available())
-if torch.cuda.is_available():
-    print('✅ CUDA device:', torch.cuda.get_device_name(0))
-"
+# Test that Demucs loads - FIXED SYNTAX
+RUN python3 -c "import torch; print('✅ PyTorch version:', torch.__version__); print('✅ CUDA available:', torch.cuda.is_available());" && \
+    python3 -c "import demucs.api; print('✅ Demucs loaded successfully')"
 
 # Expose port (optional for RunPod serverless)
 EXPOSE 8000
