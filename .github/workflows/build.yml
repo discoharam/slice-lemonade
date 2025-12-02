@@ -1,9 +1,4 @@
-﻿# Save this content to .github/workflows/build.yml
-cd "C:\DEV\Slice Lemonade"
-
-# Create the fixed file
-@'
-name: Build Docker Image
+﻿name: Build Docker Image
 
 on:
   push:
@@ -48,4 +43,3 @@ jobs:
         echo "✅ Docker image built and pushed!"
         echo "📦 Image: ghcr.io/discoharam/slice-lemonade:latest"
         echo "🔗 View at: https://github.com/discoharam/slice-lemonade/pkgs/container/slice-lemonade"
-'@ | Set-Content -Path ".github/workflows/build.yml" -Encoding UTF8
