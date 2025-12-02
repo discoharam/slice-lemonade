@@ -4,8 +4,6 @@ FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
-ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0 7.5 8.0 8.6+PTX"
-ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
 
 # Install system dependencies with cleanup
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,6 +37,9 @@ RUN pip3 install --no-cache-dir \
     torchaudio==2.0.2 \
     --index-url https://download.pytorch.org/whl/cu118
 
+# Test PyTorch import (without CUDA check during build)
+RUN python3 -c "import torch; print('✅ PyTorch', torch.__version__, 'imported successfully')"
+
 # Install Demucs and other dependencies
 RUN pip3 install --no-cache-dir \
     demucs==4.0.0 \
@@ -50,11 +51,7 @@ RUN pip3 install --no-cache-dir \
 # Copy handler
 COPY handler.py .
 
-# Test that PyTorch and CUDA work - FIXED: Use single line command
-RUN python3 -c "import torch; print('✅ PyTorch version:', torch.__version__); print('✅ CUDA available:', torch.cuda.is_available()); \
-    if torch.cuda.is_available(): print('✅ CUDA device:', torch.cuda.get_device_name(0))"
-
-# Test that Demucs loads
+# Test that Demucs loads (without GPU during build)
 RUN python3 -c "import demucs.api; print('✅ Demucs loaded successfully')"
 
 # Expose port (optional for RunPod serverless)
