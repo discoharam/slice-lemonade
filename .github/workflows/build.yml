@@ -40,4 +40,8 @@ jobs:
       run: |
         echo "✅ Docker image built and pushed!"
         echo "📦 Image: ghcr.io/discoharam/slice-lemonade:latest"
+<<<<<<< Updated upstream
         echo "🔗 View at: https://github.com/discoharam/slice-lemonade/pkgs/container/slice-lemonade"
+=======
+        echo "🔗 View at: https://github.com/discoharam/slice-lemonade/pkgs/container/slice-lemonade"
+>>>>>>> Stashed changes
