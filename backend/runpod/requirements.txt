@@ -1,6 +1,5 @@
 ﻿runpod==1.4.0
 demucs==4.0.0
-torch==2.1.0
-torchaudio==2.1.0
 scipy==1.11.4
 numpy==1.24.3
+# REMOVED: torch and torchaudio (installed in Dockerfile with CUDA 11.8)

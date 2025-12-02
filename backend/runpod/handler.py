@@ -5,22 +5,36 @@ import tempfile
 import os
 import io
 import json
-from demucs.pretrained import get_model
-from demucs.apply import apply_model
-import torchaudio
-from scipy.io import wavfile
 import numpy as np
+from scipy.io import wavfile
 
 print("🚀 Slice Lemonade Demucs Handler - REAL GPU SEPARATION")
 print(f"PyTorch: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+# Try to import Demucs with fallback
+try:
+    from demucs.pretrained import get_model
+    from demucs.apply import apply_model
+    import torchaudio
+    DEMUCS_AVAILABLE = True
+    print("✅ Demucs imported successfully")
+except ImportError as e:
+    DEMUCS_AVAILABLE = False
+    print(f"❌ Demucs import error: {e}")
+    print("Please check demucs installation")
 
 def handler(job):
     """REAL Demucs audio separation - NO TEST MODE"""
     job_id = job.get('id', 'unknown')
     print(f"🎯 Processing job {job_id} - REAL DEMUCS")
+    
+    if not DEMUCS_AVAILABLE:
+        return {
+            "error": "Demucs not properly installed",
+            "status": "error",
+            "debug": "Check Dockerfile and requirements.txt"
+        }
     
     try:
         job_input = job.get("input", {})
@@ -94,8 +108,7 @@ def handler(job):
                     device=device,
                     shifts=1,
                     split=True,
-                    overlap=0.25,
-                    progress=True
+                    overlap=0.25
                 )[0]  # Remove batch dimension
             
             print(f"✅ Separation complete! Output shape: {sources.shape}")
@@ -161,6 +174,9 @@ def handler(job):
 
 # Start the serverless handler
 if __name__ == "__main__":
-    print("✅ Real Demucs Handler - READY FOR GPU SEPARATION")
-    print("👂 Listening for jobs...")
-    runpod.serverless.start({"handler": handler})
+    if DEMUCS_AVAILABLE:
+        print("✅ Real Demucs Handler - READY FOR GPU SEPARATION")
+        print("👂 Listening for jobs...")
+        runpod.serverless.start({"handler": handler})
+    else:
+        print("❌ Demucs not available. Check installation.")

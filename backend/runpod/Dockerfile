@@ -5,9 +5,17 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
     curl \
+    wget \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install PyTorch with CUDA 11.8 FIRST
+RUN pip install --no-cache-dir \
+    torch==2.1.0+cu118 \
+    torchaudio==2.1.0+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# Install other Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
