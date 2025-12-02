@@ -1,7 +1,7 @@
-﻿runpod==0.10.0
-torch==2.0.1
+﻿torch==2.0.1
 torchaudio==2.0.2
-demucs==4.0.0
-soundfile==0.12.1
+demucs
 numpy==1.24.3
 scipy==1.11.4
+soundfile==0.12.1
+runpod==0.10.0
