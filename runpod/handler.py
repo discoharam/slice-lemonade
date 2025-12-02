@@ -1,36 +1,40 @@
-# handler.py - UPDATED VERSION
+# handler.py - OPTIMIZED FOR RUNPOD
 import runpod
 import os
 import tempfile
 import base64
 import traceback
 import json
-from pathlib import Path
 import sys
+import time
 
+print("=" * 60)
 print("🚀 Slice Lemonade - Real Demucs Handler")
-print(f"Python: {sys.version}")
+print(f"🐍 Python {sys.version}")
+print("=" * 60)
 
-# Try to load Demucs
+# Try to load Demucs with detailed logging
 separator = None
+model_loaded = False
+
 try:
-    print("🎵 Loading Demucs and dependencies...")
-    
-    # Import torch first to check CUDA
+    print("🎵 Loading PyTorch...")
     import torch
     print(f"✅ PyTorch {torch.__version__} loaded")
     
     if torch.cuda.is_available():
-        print(f"✅ CUDA available on {torch.cuda.get_device_name(0)}")
-        print(f"✅ CUDA version: {torch.version.cuda}")
+        print(f"🎮 CUDA available on {torch.cuda.get_device_name(0)}")
+        print(f"🎮 CUDA version: {torch.version.cuda}")
+        print(f"🎮 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
         device = "cuda"
     else:
         print("⚠️ CUDA not available, using CPU")
         device = "cpu"
     
-    # Now import demucs
+    print("🎵 Loading Demucs...")
     import demucs.api
     
+    print("🎵 Initializing Demucs separator...")
     separator = demucs.api.Separator(
         model="htdemucs", 
         device=device,
@@ -39,114 +43,113 @@ try:
         split=True,
         overlap=0.25
     )
+    
+    model_loaded = True
     print("✅ Demucs loaded successfully!")
     
-    # Test with a tiny audio to ensure it works
-    print("🧪 Testing Demucs with dummy audio...")
-    test_audio = torch.randn(2, 44100)  # 1 second stereo
-    _ = separator.separate(test_audio)
-    print("✅ Demucs test passed!")
+    # Quick warmup
+    print("🔥 Warming up model...")
+    warmup_audio = torch.randn(1, 44100 * 2)  # 2 seconds mono
+    _ = separator.separate(warmup_audio)
+    print("✅ Model warmup complete!")
     
 except Exception as e:
-    print(f"❌ Failed to load Demucs: {str(e)}")
+    print(f"❌ Failed to initialize Demucs: {str(e)}")
     traceback.print_exc()
     print("\n🔍 Debug info:")
-    import importlib
-    try:
-        import demucs
-        print(f"Demucs version: {demucs.__version__}")
-    except:
-        print("Demucs import failed")
-    
-    try:
-        print(f"Torch CUDA: {torch.cuda.is_available()}")
-    except:
-        pass
+    print(f"Model loaded: {model_loaded}")
+    print(f"Separator object: {separator}")
 
 def handler(job):
-    """Handle audio separation - COMPATIBLE VERSION"""
-    print(f"\n🎯 Starting job {job.get('id', 'unknown')}")
+    """Handle audio separation"""
+    print(f"\n" + "=" * 50)
+    print(f"🎯 Starting job: {job.get('id', 'unknown')}")
+    print("=" * 50)
     
     try:
         input_data = job.get("input", {})
+        print(f"📦 Input keys: {list(input_data.keys())}")
         
-        # Check for both possible field names
-        audio_data = input_data.get("audio_data") or input_data.get("audio")
-        file_name = input_data.get("file_name") or input_data.get("filename", "audio.wav")
+        # Check for audio data
+        audio_data = input_data.get("audio_data")
+        file_name = input_data.get("file_name", "audio.wav")
         
         if not audio_data:
-            error_msg = "No audio data provided. Expected 'audio_data' or 'audio' field"
+            error_msg = "No audio_data provided in input"
             print(f"❌ {error_msg}")
-            print(f"📊 Input keys: {list(input_data.keys())}")
             return {"error": error_msg, "status": "error"}
         
         print(f"📁 Processing: {file_name}")
         
+        # Decode base64
         try:
             audio_bytes = base64.b64decode(audio_data)
+            print(f"📊 Audio size: {len(audio_bytes)} bytes")
         except Exception as e:
             error_msg = f"Failed to decode base64 audio: {str(e)}"
             print(f"❌ {error_msg}")
             return {"error": error_msg, "status": "error"}
         
-        print(f"📦 Audio size: {len(audio_bytes)} bytes")
-        
-        if separator is None:
-            error_msg = "Demucs not available - model failed to load"
+        # Check if Demucs is available
+        if not model_loaded or separator is None:
+            error_msg = "Demucs model failed to load on worker"
             print(f"❌ {error_msg}")
-            return {
-                "error": error_msg,
-                "status": "error",
-                "fallback_available": True
-            }
+            return {"error": error_msg, "status": "error"}
         
-        # Save to temp file
+        # Create temp directory
         temp_dir = tempfile.mkdtemp()
         temp_path = os.path.join(temp_dir, file_name)
         
         try:
+            # Save audio to file
             with open(temp_path, 'wb') as f:
                 f.write(audio_bytes)
             
-            print("🔬 Separating audio with Demucs...")
+            print("🔬 Starting Demucs separation...")
+            start_time = time.time()
             
-            # Get separation
-            origin, separated = separator.separate_audio_file(temp_path)
+            # Separate audio
+            _, separated = separator.separate_audio_file(temp_path)
             
-            print(f"✅ Separation complete, got {len(separated)} stems: {list(separated.keys())}")
+            elapsed = time.time() - start_time
+            print(f"✅ Separation completed in {elapsed:.2f} seconds")
+            print(f"🎵 Got {len(separated)} stems: {list(separated.keys())}")
             
             # Process each stem
             results = {}
             for source, audio in separated.items():
-                print(f"💾 Processing {source}...")
-                
                 try:
-                    # Save to bytes
-                    import io
-                    from scipy.io.wavfile import write as write_wav
-                    import numpy as np
+                    print(f"💾 Processing {source}...")
                     
-                    # Convert to numpy and ensure proper format
+                    # Convert to numpy and save as WAV
+                    import io
+                    import numpy as np
+                    from scipy.io.wavfile import write as write_wav
+                    
+                    # Convert tensor to numpy
                     audio_np = audio.numpy()
                     
-                    # Handle mono/stereo
+                    # Ensure proper shape (channels x samples)
                     if audio_np.ndim == 1:
                         audio_np = audio_np.reshape(1, -1)
                     elif audio_np.ndim == 2 and audio_np.shape[0] > 2:
+                        # Transpose if needed
                         audio_np = audio_np.T
                     
-                    # Scale to int16
-                    audio_np = (audio_np * 32767).astype(np.int16)
+                    # Scale to 16-bit PCM
+                    if audio_np.dtype != np.int16:
+                        audio_np = (audio_np * 32767).astype(np.int16)
                     
                     # Write to buffer
                     buffer = io.BytesIO()
-                    write_wav(buffer, separator.samplerate, audio_np)
+                    write_wav(buffer, separator.samplerate, audio_np.T)
                     buffer.seek(0)
                     
                     # Encode as base64
                     stem_bytes = buffer.read()
                     stem_base64 = base64.b64encode(stem_bytes).decode('utf-8')
                     results[source] = stem_base64
+                    
                     print(f"✅ {source}: {len(stem_bytes)} bytes")
                     
                 except Exception as e:
@@ -156,15 +159,19 @@ def handler(job):
             if not results:
                 return {"error": "Failed to process any stems", "status": "error"}
             
-            return {
+            response = {
                 "status": "success",
                 "results": results,
-                "message": f"Separated {len(results)} stems",
-                "stems": list(results.keys())
+                "message": f"Separated {len(results)} stems in {elapsed:.2f}s",
+                "stems": list(results.keys()),
+                "processing_time": elapsed
             }
             
+            print(f"📤 Response: {len(results)} stems ready")
+            return response
+            
         finally:
-            # Clean up temp files
+            # Cleanup
             try:
                 import shutil
                 shutil.rmtree(temp_dir)
@@ -178,29 +185,21 @@ def handler(job):
         
         return {
             "status": "error",
-            "error": error_msg,
-            "traceback": traceback.format_exc()
+            "error": error_msg
         }
 
-# Warmup function
-def warmup():
-    """Warm up the model"""
-    print("\n🔥 Warming up Demucs...")
-    if separator is not None:
-        try:
-            # Create dummy audio
-            dummy_audio = torch.randn(2, 44100 * 2)  # 2 seconds
-            _ = separator.separate(dummy_audio)
-            print("✅ Warmup successful!")
-        except Exception as e:
-            print(f"⚠️ Warmup failed: {e}")
-
 if __name__ == "__main__":
-    print(f"\n🍋 Slice Lemonade Handler Ready")
-    print(f"📊 Demucs loaded: {separator is not None}")
+    print(f"\n🍋 Slice Lemonade Handler Ready!")
+    print(f"📊 Demucs loaded: {model_loaded}")
+    print(f"⚡ Device: {device if 'device' in locals() else 'unknown'}")
+    print(f"📡 Waiting for jobs...\n")
     
-    # Warm up on startup
-    warmup()
+    # Test endpoint
+    test_input = {
+        "input": {
+            "audio_data": "test",
+            "file_name": "test.wav"
+        }
+    }
     
-    print("⚡ Waiting for jobs...")
     runpod.serverless.start({"handler": handler})
