@@ -1,14 +1,14 @@
-# handler.py - SIMPLIFIED VERSION
+﻿# handler.py - OPTIMIZED FOR RUNPOD
 import runpod
 import os
 import tempfile
 import base64
 import traceback
-import json
 import sys
 
 print("=" * 60)
-print("🚀 Slice Lemonade Demucs Handler")
+print("🚀 Slice Lemonade - Real Demucs Handler")
+print(f"🐍 Python {sys.version}")
 print("=" * 60)
 
 # Try to load Demucs
@@ -32,7 +32,9 @@ try:
         model="htdemucs", 
         device=device,
         progress=True,
-        shifts=1
+        shifts=1,
+        split=True,
+        overlap=0.25
     )
     print("✅ Demucs loaded successfully!")
     
@@ -76,12 +78,12 @@ def handler(job):
             
             # Process stems
             results = {}
+            import io
+            import numpy as np
+            from scipy.io.wavfile import write as write_wav
+            
             for source, audio in separated.items():
                 print(f"💾 Processing {source}...")
-                
-                import io
-                from scipy.io.wavfile import write as write_wav
-                import numpy as np
                 
                 # Convert to numpy
                 audio_np = audio.numpy()
@@ -121,5 +123,7 @@ def handler(job):
 if __name__ == "__main__":
     print(f"\n🍋 Slice Lemonade Handler Ready")
     print(f"📊 Demucs loaded: {separator is not None}")
-    print("⚡ Waiting for jobs...")
+    if separator is not None:
+        print(f"⚡ Device: {separator.device}")
+    print("📡 Waiting for jobs...")
     runpod.serverless.start({"handler": handler})
