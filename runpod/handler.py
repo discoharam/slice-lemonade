@@ -1,39 +1,42 @@
+# handler.py - UPDATED VERSION
 import runpod
 import os
 import tempfile
 import base64
 from pathlib import Path
-import demucs.api
-from io import BytesIO
-import torch
+import traceback
 
 print("🚀 Starting Slice Lemonade RunPod Handler...")
 
-separator = None
-
 def init_separator():
-    global separator
-    if separator is None:
-        print("🎵 Loading Demucs model on GPU...")
-        try:
-            separator = demucs.api.Separator(
-                model="htdemucs", 
-                device="cuda",
-                progress=True
-            )
-            print("✅ Demucs model loaded successfully!")
-        except Exception as e:
-            print(f"❌ Failed to load Demucs: {str(e)}")
-            raise e
+    """Lazy load Demucs to avoid startup issues"""
+    try:
+        print("🎵 Attempting to load Demucs...")
+        import demucs.api
+        
+        separator = demucs.api.Separator(
+            model="htdemucs", 
+            device="cuda",
+            progress=False
+        )
+        print("✅ Demucs loaded successfully!")
+        return separator
+    except Exception as e:
+        print(f"❌ Failed to load Demucs: {str(e)}")
+        print("⚠️ Using fallback mode")
+        return None
+
+separator = init_separator()
 
 def separate_audio(job):
+    """Handle audio separation"""
+    job_id = job.get('id', 'unknown')
+    print(f"🎯 Starting job {job_id}")
+    
     try:
-        print(f"🎯 Starting job: {job.get('id', 'unknown')}")
-        init_separator()
-        
         job_input = job['input']
         audio_data = job_input.get('audio_data')
-        file_name = job_input.get('file_name', 'audio.mp3')
+        file_name = job_input.get('file_name', 'audio.wav')
         
         if not audio_data:
             return {"error": "No audio data provided"}
@@ -42,45 +45,67 @@ def separate_audio(job):
         audio_bytes = base64.b64decode(audio_data)
         print(f"📦 Audio size: {len(audio_bytes)} bytes")
         
-        with tempfile.NamedTemporaryFile(suffix=Path(file_name).suffix, delete=False) as input_file:
-            input_file.write(audio_bytes)
-            input_path = input_file.name
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(audio_bytes)
+            temp_path = f.name
         
         try:
-            print("🔬 Separating audio stems...")
-            origin, separated = separator.separate_audio_file(input_path)
-            print("✅ Separation completed!")
+            if separator is None:
+                print("⚠️ Demucs not available, using fallback")
+                return {
+                    "status": "error",
+                    "error": "Demucs not loaded on worker",
+                    "message": "GPU worker initialization failed"
+                }
             
+            print("🔬 Separating with Demucs...")
+            _, separated = separator.separate_audio_file(temp_path)
+            print(f"✅ Separation complete, got {len(separated)} sources")
+            
+            # Process each stem
             results = {}
             for source, audio in separated.items():
-                print(f"💾 Processing stem: {source}")
-                buffer = BytesIO()
-                demucs.api.save_audio(audio, buffer, samplerate=separator.samplerate)
+                print(f"💾 Processing {source}...")
+                
+                # Convert to bytes
+                import io
+                buffer = io.BytesIO()
+                separator.save_audio(audio, buffer, samplerate=separator.samplerate)
                 buffer.seek(0)
+                
+                # Encode as base64
                 audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
                 results[source] = audio_base64
-                print(f"✅ Saved {source}: {len(audio_base64)} bytes")
+                print(f"✅ {source} encoded: {len(audio_base64)} chars")
             
-            print("🎉 All stems processed successfully!")
             return {
                 "status": "success",
-                "job_id": job.get('id', 'unknown'),
+                "job_id": job_id,
                 "results": results,
-                "stems": list(results.keys()),
                 "message": f"Separated {len(results)} stems"
             }
+            
         finally:
-            Path(input_path).unlink(missing_ok=True)
+            # Clean up temp file
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+                
     except Exception as e:
-        error_msg = f"❌ Error during audio separation: {str(e)}"
+        error_msg = f"❌ Error: {str(e)}"
         print(error_msg)
+        traceback.print_exc()
+        
         return {
             "status": "error",
             "error": error_msg,
-            "job_id": job.get('id', 'unknown')
+            "job_id": job_id
         }
 
 if __name__ == "__main__":
-    print("🍋 Slice Lemonade RunPod Handler Ready!")
+    print("🍋 Slice Lemonade Handler Ready!")
+    print(f"📊 Demucs loaded: {separator is not None}")
     print("⚡ Waiting for jobs...")
     runpod.serverless.start({"handler": separate_audio})
