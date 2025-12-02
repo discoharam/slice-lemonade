@@ -1,86 +1,121 @@
-# handler.py - SIMPLE TEST VERSION
+# handler.py - REAL VERSION FOR RUNPOD
 import runpod
 import os
-import sys
+import tempfile
+import base64
+import traceback
+from pathlib import Path
 
-print("=" * 50)
-print("🚀 Slice Lemonade Handler - TEST VERSION")
-print("=" * 50)
-print(f"Python: {sys.version}")
-print(f"Current dir: {os.getcwd()}")
-print(f"Files: {os.listdir('.')}")
+print("🚀 Slice Lemonade - Real Demucs Handler")
 
-# Test imports
-def test_imports():
-    print("\n🔧 Testing imports...")
+# Try to load Demucs
+separator = None
+try:
+    print("🎵 Loading Demucs...")
+    import demucs.api
     
-    imports_to_test = [
-        "torch",
-        "torch.cuda",
-        "numpy",
-        "demucs",
-        "librosa",
-        "soundfile"
-    ]
+    # Check CUDA
+    import torch
+    if torch.cuda.is_available():
+        print(f"✅ CUDA available on {torch.cuda.get_device_name(0)}")
+        device = "cuda"
+    else:
+        print("⚠️ CUDA not available, using CPU")
+        device = "cpu"
     
-    for import_name in imports_to_test:
-        try:
-            if import_name == "torch.cuda":
-                import torch
-                print(f"✅ torch.cuda: {torch.cuda.is_available()}")
-            else:
-                __import__(import_name)
-                print(f"✅ {import_name}: OK")
-        except Exception as e:
-            print(f"❌ {import_name}: {str(e)}")
-
-test_imports()
+    separator = demucs.api.Separator(
+        model="htdemucs", 
+        device=device,
+        progress=False,
+        shifts=1
+    )
+    print("✅ Demucs loaded successfully!")
+    
+except Exception as e:
+    print(f"❌ Failed to load Demucs: {str(e)}")
+    traceback.print_exc()
 
 def handler(job):
-    """Simple test handler"""
-    print(f"\n🎯 Received job: {job.get('id')}")
+    """Handle audio separation"""
+    print(f"\n🎯 Processing job: {job.get('id')}")
     
     try:
         input_data = job.get("input", {})
-        audio_data = input_data.get("audio_data", "")
-        file_name = input_data.get("file_name", "test.wav")
+        audio_data = input_data.get("audio_data")
+        file_name = input_data.get("file_name", "audio.wav")
+        
+        if not audio_data:
+            return {"error": "No audio data provided"}
         
         print(f"📁 File: {file_name}")
-        print(f"📊 Data size: {len(audio_data)} chars")
+        audio_bytes = base64.b64decode(audio_data)
+        print(f"📦 Audio size: {len(audio_bytes)} bytes")
         
-        # Test if we can decode
-        import base64
-        if audio_data:
-            try:
-                decoded = base64.b64decode(audio_data[:100])  # Just first 100 chars
-                print(f"✅ Can decode base64: {len(decoded)} bytes")
-            except:
-                print("⚠️ Cannot decode base64")
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(audio_bytes)
+            temp_path = f.name
         
-        # Return a simple success
-        return {
-            "status": "success",
-            "message": "Handler is working!",
-            "test_output": {
-                "file": file_name,
-                "data_size": len(audio_data)
+        try:
+            if separator is None:
+                print("❌ Demucs not loaded")
+                return {
+                    "error": "Demucs model not loaded on worker",
+                    "status": "error"
+                }
+            
+            print("🔬 Separating audio...")
+            _, separated = separator.separate_audio_file(temp_path)
+            print(f"✅ Separation complete, got {len(separated)} stems")
+            
+            # Process each stem
+            results = {}
+            for source, audio in separated.items():
+                print(f"💾 Processing {source}...")
+                
+                # Save to bytes
+                import io
+                buffer = io.BytesIO()
+                separator.save_audio(
+                    audio, 
+                    buffer, 
+                    samplerate=separator.samplerate,
+                    format="wav"
+                )
+                buffer.seek(0)
+                
+                # Encode as base64
+                stem_bytes = buffer.read()
+                stem_base64 = base64.b64encode(stem_bytes).decode('utf-8')
+                results[source] = stem_base64
+                print(f"✅ {source}: {len(stem_bytes)} bytes -> {len(stem_base64)} chars base64")
+            
+            return {
+                "status": "success",
+                "results": results,
+                "message": f"Separated {len(results)} stems"
             }
-        }
-        
+            
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+                
     except Exception as e:
-        print(f"❌ Error in handler: {str(e)}")
-        import traceback
+        error_msg = f"Handler error: {str(e)}"
+        print(f"❌ {error_msg}")
         traceback.print_exc()
         
         return {
             "status": "error",
-            "error": str(e)
+            "error": error_msg
         }
 
 if __name__ == "__main__":
-    print("\n" + "=" * 50)
-    print("✅ Handler ready!")
+    print(f"\n🍋 Slice Lemonade Handler Ready")
+    print(f"📊 Demucs loaded: {separator is not None}")
     print("⚡ Waiting for jobs...")
-    print("=" * 50)
     
     runpod.serverless.start({"handler": handler})
