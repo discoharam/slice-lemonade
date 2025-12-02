@@ -1,4 +1,5 @@
-﻿FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
+﻿# backend/runpod/Dockerfile
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -11,7 +12,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir \
     runpod==1.4.0 \
     demucs==4.0.0 \
-    scipy==1.11.4
+    scipy==1.11.4 \
+    numpy==1.24.3
 
 # Copy handler code
 COPY handler.py .
