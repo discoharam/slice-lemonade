@@ -1,49 +1,47 @@
-# runpod/Dockerfile - OPTIMIZED VERSION
-FROM runpod/base:0.4.0-cuda11.8.0
+# Dockerfile
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
-# Set working directory
-WORKDIR /workspace
+# Set Python version
+ENV PYTHON_VERSION=3.10
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Clean up any unnecessary files first
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf /tmp/*
-
-# Install only essential system dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-dev \
+    git \
     ffmpeg \
     libsndfile1 \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies with NO CACHE to save space
-RUN pip3 install --no-cache-dir --upgrade pip
+# Set working directory
+WORKDIR /app
 
-# Install PyTorch with CUDA 11.8 - MINIMAL VERSION
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies with specific versions
+RUN pip3 install --no-cache-dir --upgrade pip
 RUN pip3 install --no-cache-dir \
+    runpod==0.10.0 \
     torch==2.0.1 \
     torchaudio==2.0.2 \
     --index-url https://download.pytorch.org/whl/cu118
 
-# Install only essential Demucs dependencies
+# Install Demucs and audio processing libraries
 RUN pip3 install --no-cache-dir \
     demucs==4.0.0 \
-    numpy==1.24.3 \
-    soundfile==0.12.1
-
-# Clean up pip cache
-RUN rm -rf ~/.cache/pip/*
-
-# Create directory for models
-RUN mkdir -p /workspace/models
+    soundfile \
+    numpy \
+    scipy
 
 # Copy handler
-COPY handler.py /workspace/handler.py
+COPY handler.py .
 
-# Set environment variables
-ENV PYTHONPATH=/workspace
-ENV DEMUCS_MODELS=/workspace/models
-ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-ENV PYTHONUNBUFFERED=1
+# Test that Demucs loads
+RUN python3 -c "import demucs.api; import torch; print('✅ Demucs loaded successfully'); print(f'✅ CUDA available: {torch.cuda.is_available()}')"
 
-# Run the handler
-CMD ["python3", "/workspace/handler.py"]
+# Start the handler
+CMD ["python3", "-u", "handler.py"]
