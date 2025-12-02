@@ -1,45 +1,59 @@
-# handler.py - OPTIMIZED FOR RUNPOD
+# handler.py - SIMPLIFIED ROBUST VERSION
 import runpod
 import os
 import tempfile
 import base64
 import traceback
 import sys
+import json
 
 print("=" * 60)
-print("🚀 Slice Lemonade - Real Demucs Handler")
+print("🚀 Slice Lemonade Demucs Handler")
 print(f"🐍 Python {sys.version}")
 print("=" * 60)
 
-# Try to load Demucs
+# Try to load Demucs with better error handling
 separator = None
+model_loaded = False
+
 try:
     print("🎵 Loading PyTorch...")
     import torch
-    print(f"✅ PyTorch {torch.__version__} loaded")
+    print(f"✅ PyTorch {torch.__version__}")
     
     if torch.cuda.is_available():
-        print(f"🎮 CUDA available on {torch.cuda.get_device_name(0)}")
+        print(f"🎮 CUDA: {torch.cuda.get_device_name(0)}")
         device = "cuda"
     else:
-        print("⚠️ CUDA not available, using CPU")
+        print("⚠️ CUDA not available")
         device = "cpu"
     
     print("🎵 Loading Demucs...")
-    import demucs.api
+    # Try different import approaches
+    try:
+        from demucs import separate
+        print("✅ Demucs import method 1 successful")
+    except:
+        try:
+            import demucs.api
+            print("✅ Demucs import method 2 successful")
+        except Exception as e:
+            print(f"❌ Demucs import failed: {e}")
+            raise
     
+    # Initialize separator
+    import demucs.api
     separator = demucs.api.Separator(
-        model="htdemucs", 
+        model="htdemucs",
         device=device,
-        progress=True,
-        shifts=1,
-        split=True,
-        overlap=0.25
+        progress=True
     )
-    print("✅ Demucs loaded successfully!")
+    
+    model_loaded = True
+    print("✅ Demucs initialized successfully!")
     
 except Exception as e:
-    print(f"❌ Failed to load Demucs: {str(e)}")
+    print(f"❌ Initialization error: {str(e)}")
     traceback.print_exc()
 
 def handler(job):
@@ -63,27 +77,29 @@ def handler(job):
         except:
             return {"error": "Invalid base64 audio", "status": "error"}
         
-        if separator is None:
-            return {"error": "Demucs not loaded", "status": "error"}
+        if not model_loaded or separator is None:
+            return {"error": "Demucs model not loaded", "status": "error"}
         
         # Save to temp file
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(audio_bytes)
-            temp_path = f.name
+        temp_dir = tempfile.mkdtemp()
+        temp_path = os.path.join(temp_dir, file_name)
         
         try:
+            with open(temp_path, 'wb') as f:
+                f.write(audio_bytes)
+            
             print("🔬 Separating audio...")
             _, separated = separator.separate_audio_file(temp_path)
-            print(f"✅ Got {len(separated)} stems")
+            print(f"✅ Separation complete: {len(separated)} stems")
             
             # Process stems
             results = {}
-            import io
-            import numpy as np
-            from scipy.io.wavfile import write as write_wav
-            
             for source, audio in separated.items():
                 print(f"💾 Processing {source}...")
+                
+                import io
+                from scipy.io.wavfile import write as write_wav
+                import numpy as np
                 
                 # Convert to numpy
                 audio_np = audio.numpy()
@@ -104,13 +120,15 @@ def handler(job):
             return {
                 "status": "success",
                 "results": results,
-                "message": f"Separated {len(results)} stems"
+                "message": f"Separated {len(results)} stems",
+                "stems": list(results.keys())
             }
             
         finally:
             # Clean up
             try:
-                os.unlink(temp_path)
+                import shutil
+                shutil.rmtree(temp_dir)
             except:
                 pass
                 
@@ -122,8 +140,8 @@ def handler(job):
 
 if __name__ == "__main__":
     print(f"\n🍋 Slice Lemonade Handler Ready")
-    print(f"📊 Demucs loaded: {separator is not None}")
-    if separator is not None:
-        print(f"⚡ Device: {separator.device}")
+    print(f"📊 Demucs loaded: {model_loaded}")
+    print(f"⚡ Device: {device if 'device' in locals() else 'unknown'}")
     print("📡 Waiting for jobs...")
+    
     runpod.serverless.start({"handler": handler})
