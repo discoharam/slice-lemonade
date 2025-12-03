@@ -1,24 +1,29 @@
-﻿# Dependencies
-node_modules/
-frontend/node_modules/
-backend/venv/
+﻿# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Environment
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Build outputs
-dist/
-build/
-out/
-*.exe
-*.out
-*.app
+.env*.local
 
 # IDE
 .vscode/
@@ -30,12 +35,21 @@ out/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# Frontend
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Temporary files
-temp/
-tmp/
+# Backend
+static/uploads/*
+static/results/*
+!static/uploads/.gitkeep
+!static/results/.gitkeep
+
+# Logs
+*.log
+
+# Our app
+backend/.env
+backend/.env.local
