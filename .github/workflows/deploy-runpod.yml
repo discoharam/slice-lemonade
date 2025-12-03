@@ -11,7 +11,11 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: production
+    
+    # CRITICAL: Add permissions for package registry
+    permissions:
+      contents: read
+      packages: write  # This gives write access to GHCR
     
     steps:
     - name: Checkout repository
@@ -25,7 +29,7 @@ jobs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ secrets.GITHUB_TOKEN }}  # Uses the default GITHUB_TOKEN with enhanced permissions
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -38,15 +42,15 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Deploy to RunPod
+    - name: Deploy instructions
       run: |
         echo "✅ Docker image built successfully!"
         echo ""
         echo "📋 NEXT STEPS (Manual):"
-        echo "1. Go to https://runpod.io/console/serverless"
-        echo "2. Open endpoint 'whast4iifdcn9r'"
-        echo "3. Click 'Refresh' to pull latest image"
-        echo "4. Wait 2-3 minutes for deployment"
-        echo "5. Test with: python backend/test_now.py"
+        echo "1. Go to https://runpod.io/console/serverless/whast4iifdcn9r"
+        echo "2. Click 'Refresh' to pull latest image"
+        echo "3. Wait 2-3 minutes for deployment"
+        echo "4. Test with: python backend/test_now.py"
         echo ""
         echo "📦 Image: ghcr.io/discoharam/slice-lemonade:latest"
+        echo "🔗 View packages: https://github.com/discoharam/slice-lemonade/pkgs/container/slice-lemonade"
