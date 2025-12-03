@@ -8,17 +8,19 @@ import json
 import numpy as np
 from scipy.io import wavfile
 import subprocess
+import sys
 
-print("🚀 Slice Lemonade Demucs Handler - REAL GPU SEPARATION")
+print("🚀 Slice Lemonade Demucs Handler - REAL GPU SEPARATION v4.0.0")
+print(f"Python: {sys.version}")
 print(f"PyTorch: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}")
 
 def handler(job):
-    """Audio separation handler using Demucs command line"""
+    """Audio separation handler using Demucs v4.0.0"""
     job_id = job.get('id', 'unknown')
-    print(f"🎯 Processing job {job_id} - REAL DEMUCS")
+    print(f"🎯 Processing job {job_id} - REAL DEMUCS v4.0.0")
     
     try:
         job_input = job.get("input", {})
@@ -41,121 +43,162 @@ def handler(job):
             with open(input_path, 'wb') as f:
                 f.write(audio_bytes)
             
-            # Run Demucs command line - SIMPLEST APPROACH
-            print("🤖 Running Demucs separation...")
+            print("🤖 Starting Demucs v4.0.0 separation...")
             
-            # Use command line demucs (most stable)
-            cmd = [
-                "demucs",
-                "--device", "cuda" if torch.cuda.is_available() else "cpu",
-                "--two-stems=vocals",
-                "-o", tmpdir,
-                input_path
-            ]
-            
-            print(f"📝 Command: {' '.join(cmd)}")
-            
+            # METHOD 1: Try command-line first (most reliable)
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+                print("📝 Running Demucs command line...")
+                cmd = [
+                    "demucs",
+                    "--device", "cuda" if torch.cuda.is_available() else "cpu",
+                    "-o", tmpdir,  # Output directory
+                    input_path
+                ]
+                
+                print(f"Command: {' '.join(cmd)}")
+                
+                result = subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=300
+                )
                 
                 if result.returncode != 0:
-                    print(f"❌ Demucs command failed: {result.stderr}")
-                    # Fall back to Python API
-                    print("🔄 Trying Python API...")
-                    return python_demucs_separation(audio_bytes, tmpdir, filename)
+                    print(f"⚠️ Command failed: {result.stderr}")
+                    raise Exception("Command-line demucs failed")
+                    
+                print("✅ Command-line demucs completed")
                 
-                print("✅ Demucs command completed")
+                # Find output files - Demucs v4.0.0 structure
+                model_dir = "htdemucs"  # Default model
+                output_dir = os.path.join(tmpdir, model_dir)
                 
-            except subprocess.TimeoutExpired:
-                print("⏰ Demucs command timed out, trying Python API...")
-                return python_demucs_separation(audio_bytes, tmpdir, filename)
-            
-            # Find output files
-            output_dir = os.path.join(tmpdir, "htdemucs")
-            if not os.path.exists(output_dir):
-                # Try to find any directory
-                for item in os.listdir(tmpdir):
-                    item_path = os.path.join(tmpdir, item)
-                    if os.path.isdir(item_path):
-                        output_dir = item_path
-                        break
-            
-            # Look for separated files
-            stems = ['drums', 'bass', 'other', 'vocals']
-            results = {}
-            
-            for stem in stems:
-                # Look for the file in the expected structure
-                stem_path = os.path.join(output_dir, os.path.splitext(filename)[0], f"{stem}.wav")
+                if not os.path.exists(output_dir):
+                    # Look for any directory
+                    items = os.listdir(tmpdir)
+                    for item in items:
+                        item_path = os.path.join(tmpdir, item)
+                        if os.path.isdir(item_path) and not item.startswith('.'):
+                            output_dir = item_path
+                            break
                 
-                if not os.path.exists(stem_path):
-                    # Try alternative location
-                    for root, dirs, files in os.walk(output_dir):
-                        for file in files:
-                            if file.endswith('.wav') and stem in file.lower():
-                                stem_path = os.path.join(root, file)
-                                break
+                print(f"Looking for output in: {output_dir}")
                 
-                if os.path.exists(stem_path):
-                    with open(stem_path, 'rb') as f:
-                        stem_bytes = f.read()
-                    results[stem] = base64.b64encode(stem_bytes).decode('utf-8')
-                    print(f"✅ {stem}: {len(results[stem])} chars")
+                # Get the track name (without extension)
+                track_name = os.path.splitext(filename)[0]
+                
+                # Look for stems in the expected structure
+                stems = {}
+                for stem in ['vocals', 'drums', 'bass', 'other']:
+                    # Try different possible locations
+                    possible_paths = [
+                        os.path.join(output_dir, track_name, f"{stem}.wav"),
+                        os.path.join(output_dir, track_name, f"{stem}.mp3"),
+                        os.path.join(output_dir, track_name, stem, "audio.wav"),
+                    ]
+                    
+                    found = False
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            with open(path, 'rb') as f:
+                                stems[stem] = base64.b64encode(f.read()).decode('utf-8')
+                            print(f"✅ Found {stem}: {len(stems[stem])} chars")
+                            found = True
+                            break
+                    
+                    if not found:
+                        print(f"⚠️ {stem} not found in output")
+                
+                if stems:
+                    print(f"🎉 Command-line success! Found {len(stems)} stems")
+                    return {
+                        "status": "success",
+                        "message": "Demucs separation completed",
+                        "stems": list(stems.keys()),
+                        **stems
+                    }
                 else:
-                    print(f"⚠️ {stem} not found in output")
-            
-            if not results:
-                print("🔄 No stems found, trying Python API...")
+                    print("❌ No stems found in command-line output")
+                    raise Exception("No output from command-line demucs")
+                    
+            except Exception as e:
+                print(f"🔄 Command-line failed, trying Python API: {str(e)}")
                 return python_demucs_separation(audio_bytes, tmpdir, filename)
-            
-            print(f"🎉 Success! {len(results)} stems")
-            return {
-                "status": "success",
-                "message": "Demucs separation completed",
-                "stems": list(results.keys()),
-                **results
-            }
             
     except Exception as e:
         print(f"❌ Handler error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {"error": f"Handler error: {str(e)}", "status": "error"}
+        return {
+            "error": f"Handler error: {str(e)}", 
+            "status": "error",
+            "debug": {
+                "cuda": torch.cuda.is_available(),
+                "torch_version": torch.__version__
+            }
+        }
 
 def python_demucs_separation(audio_bytes, tmpdir, filename):
-    """Fallback using Python API"""
+    """Fallback using Python API for Demucs v4.0.0"""
     try:
-        print("🤖 Trying Python API fallback...")
+        print("🤖 Trying Demucs Python API...")
         
         # Save audio to file
         input_path = os.path.join(tmpdir, filename)
         with open(input_path, 'wb') as f:
             f.write(audio_bytes)
         
-        # Try to import and use Demucs Python API
+        # Import Demucs v4.0.0 API
         try:
+            # First try the new API
             from demucs.pretrained import get_model
             from demucs.apply import apply_model
             import torchaudio
         except ImportError as e:
-            return {"error": f"Demucs Python API not available: {e}", "status": "error"}
+            print(f"❌ Import error: {str(e)}")
+            # Try alternative imports
+            try:
+                from demucs import pretrained
+                from demucs import apply
+                get_model = pretrained.get_model
+                apply_model = apply.apply_model
+                import torchaudio
+            except ImportError as e2:
+                return {"error": f"Demucs Python API not available: {e2}", "status": "error"}
+        
+        print("✅ Imports successful")
         
         # Load model
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = get_model('htdemucs')
-        model.to(device)
-        model.eval()
+        print(f"📦 Loading model on {device}...")
+        
+        try:
+            model = get_model('htdemucs')
+            model.to(device)
+            model.eval()
+        except Exception as e:
+            return {"error": f"Failed to load model: {str(e)}", "status": "error"}
+        
+        print("✅ Model loaded")
         
         # Load audio
-        wav, sr = torchaudio.load(input_path)
+        try:
+            wav, sr = torchaudio.load(input_path)
+            print(f"📊 Audio loaded: {wav.shape}, {sr}Hz")
+        except Exception as e:
+            return {"error": f"Failed to load audio: {str(e)}", "status": "error"}
         
         # Convert to mono if stereo
         if wav.shape[0] > 1:
             wav = wav.mean(dim=0, keepdim=True)
+            print("✅ Converted to mono")
         
-        # Resample to 44100 Hz
+        # Resample to 44100 Hz if needed
         if sr != 44100:
-            wav = torchaudio.functional.resample(wav, sr, 44100)
+            resample = torchaudio.transforms.Resample(sr, 44100)
+            wav = resample(wav)
+            print(f"✅ Resampled to 44100Hz")
         
         # Normalize
         max_val = wav.abs().max()
@@ -163,8 +206,11 @@ def python_demucs_separation(audio_bytes, tmpdir, filename):
             wav = wav / max_val
         
         # Separate
+        print("⚡ Starting separation...")
         with torch.no_grad():
             sources = apply_model(model, wav[None], device=device)[0]
+        
+        print(f"✅ Separation complete: {sources.shape}")
         
         # Prepare results
         stems = ['drums', 'bass', 'other', 'vocals']
@@ -172,13 +218,18 @@ def python_demucs_separation(audio_bytes, tmpdir, filename):
         
         for idx, stem in enumerate(stems):
             if idx < sources.shape[0]:
+                # Get the stem audio
                 stem_wav = sources[idx].cpu().numpy()
+                
+                # Convert to int16
                 stem_wav_int16 = np.clip(stem_wav * 32767, -32768, 32767).astype(np.int16)
                 
+                # Save to bytes
                 bytes_io = io.BytesIO()
                 wavfile.write(bytes_io, 44100, stem_wav_int16.T)
                 stem_bytes = bytes_io.getvalue()
                 
+                # Encode to base64
                 results[stem] = base64.b64encode(stem_bytes).decode('utf-8')
                 print(f"✅ {stem}: {len(results[stem])} chars")
         
@@ -194,9 +245,16 @@ def python_demucs_separation(audio_bytes, tmpdir, filename):
         
     except Exception as e:
         print(f"❌ Python API error: {str(e)}")
-        return {"error": f"Python API failed: {str(e)}", "status": "error"}
+        import traceback
+        traceback.print_exc()
+        return {
+            "error": f"Python API failed: {str(e)}", 
+            "status": "error",
+            "python_error": str(e)
+        }
 
 # Start handler
 if __name__ == "__main__":
-    print("✅ Handler ready for GPU separation")
+    print("✅ Slice Lemonade Handler ready!")
+    print("📡 Waiting for jobs...")
     runpod.serverless.start({"handler": handler})
