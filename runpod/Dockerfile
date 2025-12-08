@@ -9,7 +9,7 @@ WORKDIR /workspace
 RUN apt-get update && apt-get install -y ffmpeg libsndfile1 curl git libsox-dev sox libavcodec-extra python3-dev build-essential ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/* && update-ca-certificates
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt certifi && pip cache purge
-RUN mkdir -p /tmp/torch/hub/checkpoints /tmp/huggingface
+RUN mkdir -p /tmp/torch/hub/checkpoints /tmp/huggingface && chmod -R 777 /tmp
 COPY handler.py .
 RUN useradd -m -u 1000 worker && chown -R worker:worker /workspace
 USER worker

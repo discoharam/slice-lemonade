@@ -8,7 +8,11 @@ os.environ['TORCH_HOME']='/tmp/torch'
 os.environ['REQUESTS_CA_BUNDLE']='/etc/ssl/certs/ca-certificates.crt'
 os.environ['SSL_CERT_FILE']='/etc/ssl/certs/ca-certificates.crt'
 os.makedirs('/tmp/huggingface',exist_ok=True)
-os.makedirs('/tmp/torch',exist_ok=True)
+os.makedirs('/tmp/torch/hub/checkpoints',exist_ok=True)
+os.chmod('/tmp/torch',0o777)
+os.chmod('/tmp/torch/hub',0o777)
+os.chmod('/tmp/torch/hub/checkpoints',0o777)
+os.chmod('/tmp/huggingface',0o777)
 import certifi
 ssl._create_default_https_context=ssl._create_unverified_context
 def init():return{"status":"ready"}
