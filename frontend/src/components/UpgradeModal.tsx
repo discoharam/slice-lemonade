@@ -1,7 +1,7 @@
 // frontend/src/components/UpgradeModal.tsx - COMPACT VERSION
 import React from 'react';
 import { X, Check, Zap, Crown, Sparkles, Clock, Users, Shield, Zap as Lightning } from 'lucide-react';
-import { MinutesPlan } from '../types/minutes';
+import { MinutesPlan } from '../src/types/minutes';
 
 interface UpgradeModalProps {
   isOpen: boolean;
