@@ -4,6 +4,7 @@ print("=== SLICE LEMONADE WORKER ===")
 print(f"PyTorch:{torch.__version__} CUDA:{torch.cuda.is_available()}")
 def init():return{"status":"ready"}
 def handler(job):
+    tmpdir=None
     try:
         from demucs.pretrained import get_model
         from demucs.apply import apply_model
@@ -11,7 +12,7 @@ def handler(job):
         print(f"Loading model on {device}...")
         model=get_model('htdemucs')
         model.to(device).eval()
-        print("✅ Model loaded")
+        print("? Model loaded")
         job_input=job.get("input",{})
         audio_base64=job_input.get("audio_data","")
         if not audio_base64:return{"error":"No audio data"}
@@ -40,7 +41,8 @@ def handler(job):
         traceback.print_exc()
         return{"error":f"Processing failed:{str(e)}"}
     finally:
-        import shutil
-        shutil.rmtree(tmpdir,ignore_errors=True)
+        if tmpdir:
+            import shutil
+            shutil.rmtree(tmpdir,ignore_errors=True)
 if __name__=="__main__":
     runpod.serverless.start({"handler":handler})
