@@ -1,4 +1,6 @@
-﻿import os,time,base64,requests,json;from dotenv import load_dotenv
+﻿# File: backend/app/runpod_client.py
+import os,time,base64,requests,json
+from dotenv import load_dotenv
 class RunPodClient:
  def __init__(self):
   load_dotenv();self.api_key=os.getenv('RUNPOD_API_KEY');self.endpoint_id=os.getenv('RUNPOD_ENDPOINT_ID')
@@ -12,7 +14,7 @@ class RunPodClient:
    payload={"input":{"audio_data":audio_base64,"file_name":filename,"quality":quality}}
    headers={"Authorization":f"Bearer {self.api_key}","Content-Type":"application/json"}
    run_url=f"https://api.runpod.ai/v2/{self.endpoint_id}/run";print(f"🚀 Sending to RunPod: {len(audio_bytes)} bytes")
-   response=requests.post(run_url,json=payload,headers=headers,timeout=120)
+   response=requests.post(run_url,json=payload,headers=headers,timeout=60)
    if response.status_code!=200:
     print(f"❌ RunPod API error {response.status_code}: {response.text[:200] if response.text else 'No error message'}")
     return {"error": f"RunPod API error {response.status_code}: {response.text[:200] if response.text else 'No error message'}"}
@@ -22,15 +24,18 @@ class RunPodClient:
    else:return {"error": "Invalid RunPod response format"}
    if not runpod_job_id:return {"error": "No job ID returned from RunPod"}
    return self._poll_job_status(runpod_job_id)
+  except requests.exceptions.Timeout:
+   print(f"❌ RunPod timeout after 60 seconds")
+   return {"error": "RunPod connection timeout (60s)"}
   except Exception as e:
    print(f"❌ RunPod connection error: {str(e)}")
    return {"error": f"RunPod connection error: {str(e)}"}
  def _poll_job_status(self,runpod_job_id):
-  headers={"Authorization":f"Bearer {self.api_key}","Content-Type":"application/json"};status_url=f"https://api.runpod.ai/v2/{self.endpoint_id}/status/{runpod_job_id}";max_attempts=60;print(f"⏳ Polling job: {runpod_job_id}")
+  headers={"Authorization":f"Bearer {self.api_key}","Content-Type":"application/json"};status_url=f"https://api.runpod.ai/v2/{self.endpoint_id}/status/{runpod_job_id}";max_attempts=30;print(f"⏳ Polling job: {runpod_job_id}")
   for attempt in range(max_attempts):
    time.sleep(5)
    try:
-    response=requests.get(status_url,headers=headers,timeout=30)
+    response=requests.get(status_url,headers=headers,timeout=15)
     if response.status_code!=200:continue
     status_data=response.json();status=status_data.get("status")
     if status=="COMPLETED":

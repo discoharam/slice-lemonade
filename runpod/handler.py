@@ -1,12 +1,16 @@
-import runpod,torch,base64,tempfile,os,subprocess,time,json
+# File: runpod/handler.py
+import runpod,torch,base64,tempfile,os,subprocess,time,json,sys,ssl
 import soundfile as sf,numpy as np
 print("=== SLICE LEMONADE WORKER ===")
 print(f"PyTorch:{torch.__version__} CUDA:{torch.cuda.is_available()}")
-# Set cache directory to writable location
-os.environ['HF_HOME'] = '/tmp/huggingface'
-os.environ['TORCH_HOME'] = '/tmp/torch'
-os.makedirs('/tmp/huggingface', exist_ok=True)
-os.makedirs('/tmp/torch', exist_ok=True)
+os.environ['HF_HOME']='/tmp/huggingface'
+os.environ['TORCH_HOME']='/tmp/torch'
+os.environ['REQUESTS_CA_BUNDLE']='/etc/ssl/certs/ca-certificates.crt'
+os.environ['SSL_CERT_FILE']='/etc/ssl/certs/ca-certificates.crt'
+os.makedirs('/tmp/huggingface',exist_ok=True)
+os.makedirs('/tmp/torch',exist_ok=True)
+import certifi
+ssl._create_default_https_context=ssl._create_unverified_context
 def init():return{"status":"ready"}
 def handler(job):
     tmpdir=None
