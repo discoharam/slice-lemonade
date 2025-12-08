@@ -1,10 +1,19 @@
 # runpod/handler.py
-import runpod,torch,base64,tempfile,os,subprocess,time,json,sys
-import soundfile as sf,numpy as np
-from demucs.pretrained import get_model
-from demucs.apply import apply_model
+import sys
+import traceback
 
-# Global model variable
+# Wrap imports to catch startup crashes
+try:
+    import runpod, torch, base64, tempfile, os, subprocess, time, json
+    import soundfile as sf, numpy as np
+    from demucs.pretrained import get_model
+    from demucs.apply import apply_model
+except Exception as e:
+    print(f"❌ CRITICAL: Import failed: {e}")
+    traceback.print_exc()
+    sys.exit(1)
+
+# Global variables
 model = None
 device = None
 
@@ -13,17 +22,20 @@ def init():
     global model, device
     print("===> Slice Lemonade Worker: Initializing...")
     
-    os.environ['TORCH_HOME'] = '/tmp/torch'
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Check environment
+    print(f"TORCH_HOME: {os.environ.get('TORCH_HOME', 'Not Set')}")
     
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Loading htdemucs on {device}...")
+    
     try:
-        # This will now load instantly from the Docker image cache
+        # Load model (should exist in /workspace/models now)
         model = get_model('htdemucs')
         model.to(device).eval()
         print("✅ Model loaded successfully.")
     except Exception as e:
         print(f"❌ Init failed: {e}")
+        traceback.print_exc()
         return {"error": str(e)}
         
     return {"status": "ready"}
@@ -39,7 +51,8 @@ def handler(job):
         audio_base64 = job_input.get("audio_data", "")
         if not audio_base64: return {"error": "No audio_data"}
 
-        tmpdir = tempfile.mkdtemp(dir="/tmp")
+        # Use standard tmp for processing (ephemeral is fine here)
+        tmpdir = tempfile.mkdtemp()
         input_path = os.path.join(tmpdir, "input.wav")
         
         with open(input_path, 'wb') as f:
@@ -62,6 +75,7 @@ def handler(job):
                 stem_path = os.path.join(tmpdir, f"{name}.wav")
                 sf.write(stem_path, stems[i].cpu().numpy().T, 44100)
                 mp3_path = os.path.join(tmpdir, f"{name}.mp3")
+                # Run ffmpeg
                 subprocess.run(['ffmpeg', '-y', '-i', stem_path, '-codec:a', 'libmp3lame', '-b:a', '320k', '-q:a', '0', mp3_path], check=True, capture_output=True)
                 with open(mp3_path, 'rb') as f:
                     stems_dict[name] = base64.b64encode(f.read()).decode()
@@ -69,7 +83,7 @@ def handler(job):
         return {"stems": stems_dict, "status": "completed"}
         
     except Exception as e:
-        import traceback
+        print(f"Processing Error: {e}")
         traceback.print_exc()
         return {"error": str(e)}
     finally:

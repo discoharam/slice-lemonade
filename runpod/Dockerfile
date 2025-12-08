@@ -4,8 +4,8 @@ FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=UTC \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/tmp/huggingface \
-    TORCH_HOME=/tmp/torch \
+    HF_HOME=/workspace/huggingface \
+    TORCH_HOME=/workspace/models \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
@@ -22,17 +22,22 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 
-# Create cache directories and set permissions globally
-RUN mkdir -p /tmp/torch/hub/checkpoints /tmp/huggingface && chmod -R 777 /tmp
+# Create permanent cache directories
+RUN mkdir -p /workspace/models /workspace/huggingface
 
-# Pre-download the model (Uses the fixed script)
+# Pre-download the model (Running as root, will fix permissions later)
 COPY download_model.py .
 RUN python download_model.py
 
 # Setup handler
 COPY handler.py .
-RUN useradd -m -u 1000 worker && chown -R worker:worker /workspace
 
+# Create worker user and GRANT OWNERSHIP of the workspace
+RUN useradd -m -u 1000 worker && \
+    chown -R worker:worker /workspace
+
+# Switch to worker
 USER worker
+
 EXPOSE 8000
 CMD ["python", "-u", "handler.py"]

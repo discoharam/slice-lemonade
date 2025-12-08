@@ -1,5 +1,5 @@
-Write-Host "SLICE LEMONADE: Pushing Worker Fixes" -ForegroundColor Cyan
-Write-Host "====================================" -ForegroundColor Yellow
+Write-Host "SLICE LEMONADE: Pushing Worker Fixes (Persistent Cache)" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Yellow
 
 # 1. Clean git lock files
 if (Test-Path .git\index.lock) { Remove-Item .git\index.lock -Force }
@@ -9,7 +9,7 @@ git add .
 
 # 3. Commit
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$msg = "fix: Update download_model.py with correct Demucs API - " + $timestamp
+$msg = "fix: Move cache to /workspace/models to fix startup crash - " + $timestamp
 git commit -m $msg
 
 # 4. Push
@@ -19,8 +19,8 @@ git push origin main
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "SUCCESS: Fixes pushed." -ForegroundColor Green
-    Write-Host "Please monitor the GitHub Action for build success." -ForegroundColor Cyan
-    Write-Host "Once built, REFRESH your RunPod endpoint." -ForegroundColor Yellow
+    Write-Host "1. Monitor GitHub Action" -ForegroundColor Cyan
+    Write-Host "2. REFRESH RunPod endpoint when done" -ForegroundColor Yellow
 } else {
     Write-Host "ERROR: Git push failed." -ForegroundColor Red
 }
