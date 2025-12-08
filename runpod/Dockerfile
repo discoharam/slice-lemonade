@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y ffmpeg libsndfile1 curl git libsox-dev 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 RUN mkdir -p /root/.cache/torch/hub/checkpoints /root/.cache/huggingface
-# PRE-DOWNLOAD AND CACHE THE MODEL
-RUN python -c "import torch; from demucs.pretrained import get_model; print('Pre-downloading Demucs model...'); try: model = get_model('htdemucs'); print('? Model pre-downloaded successfully'); if torch.cuda.is_available(): model.cuda().eval(); print('? GPU available, model moved to GPU'); else: model.cpu().eval(); print('? Using CPU'); except Exception as e: print(f'?? Pre-download failed: {e}'); print('Model will download at runtime')"
 COPY handler.py .
 RUN useradd -m -u 1000 worker && chown -R worker:worker /workspace /root/.cache
 USER worker
