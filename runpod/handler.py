@@ -2,6 +2,11 @@ import runpod,torch,base64,tempfile,os,subprocess,time,json
 import soundfile as sf,numpy as np
 print("=== SLICE LEMONADE WORKER ===")
 print(f"PyTorch:{torch.__version__} CUDA:{torch.cuda.is_available()}")
+# Set cache directory to writable location
+os.environ['HF_HOME'] = '/tmp/huggingface'
+os.environ['TORCH_HOME'] = '/tmp/torch'
+os.makedirs('/tmp/huggingface', exist_ok=True)
+os.makedirs('/tmp/torch', exist_ok=True)
 def init():return{"status":"ready"}
 def handler(job):
     tmpdir=None
