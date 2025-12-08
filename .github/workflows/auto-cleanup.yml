@@ -1,0 +1,51 @@
+# .github/workflows/auto-cleanup.yml (UPDATED)
+name: Auto Storage Cleanup
+
+on:
+  schedule:
+    # Run every day at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip install psutil
+    
+    - name: Run enhanced cleanup (moderate)
+      run: |
+        cd backend
+        python enhanced_cleanup.py --strategy=moderate --backup
+    
+    - name: Clean Python cache
+      run: |
+        find . -type d -name "__pycache__" -exec rm -rf {} + || true
+        find . -type f -name "*.pyc" -delete
+    
+    - name: Generate cleanup report
+      run: |
+        echo "🧹 Cleanup completed at $(date)" >> cleanup.log
+        du -sh backend/app/static/* >> cleanup.log
+    
+    - name: Upload cleanup report
+      uses: actions/upload-artifact@v3
+      with:
+        name: cleanup-report
+        path: |
+          cleanup.log
+          backend/cleanup_reports/
+          backend/storage_logs/

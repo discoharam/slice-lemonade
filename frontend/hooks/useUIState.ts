@@ -1,0 +1,20 @@
+import { useState, useCallback } from 'react';
+export const useUIState = () => {
+ const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+ const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+ const [processingEstimate, setProcessingEstimate] = useState<any>(null);
+ const [userPlan, setUserPlan] = useState('Creator');
+ const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+ const [activeNav, setActiveNav] = useState('studio');
+ const [searchQuery, setSearchQuery] = useState('');
+ const toggleSidebar = useCallback(() => {setIsSidebarCollapsed(prev => !prev);}, []);
+ const changeNav = useCallback((nav: string) => {setActiveNav(nav);}, []);
+ const updateSearchQuery = useCallback((query: string) => {setSearchQuery(query);}, []);
+ const openUpgradeModal = useCallback(() => {setShowUpgradeModal(true);}, []);
+ const closeUpgradeModal = useCallback(() => {setShowUpgradeModal(false);}, []);
+ const toggleProfileDropdown = useCallback(() => {setShowProfileDropdown(prev => !prev);}, []);
+ const closeProfileDropdown = useCallback(() => {setShowProfileDropdown(false);}, []);
+ const updateUserPlan = useCallback((plan: string) => {setUserPlan(plan);}, []);
+ const updateProcessingEstimate = useCallback((estimate: any) => {setProcessingEstimate(estimate);}, []);
+ return {showUpgradeModal,showProfileDropdown,processingEstimate,userPlan,isSidebarCollapsed,activeNav,searchQuery,setShowUpgradeModal,setShowProfileDropdown,setProcessingEstimate,setUserPlan,setIsSidebarCollapsed,setActiveNav,setSearchQuery,toggleSidebar,changeNav,updateSearchQuery,openUpgradeModal,closeUpgradeModal,toggleProfileDropdown,closeProfileDropdown,updateUserPlan,updateProcessingEstimate,};
+};

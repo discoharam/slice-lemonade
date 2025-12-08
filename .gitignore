@@ -1,0 +1,21 @@
+﻿# Audio files - NEVER PUSH
+backend/app/static/uploads/
+backend/app/static/results/
+backend/cleanup_reports/
+backend/storage_logs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
