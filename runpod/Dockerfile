@@ -11,28 +11,28 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /workspace
 
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg libsndfile1 git curl libsox-dev sox ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     update-ca-certificates
 
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
 
-# --- Create directories and set permissions as root FIRST ---
+# Create cache directories and set permissions globally
 RUN mkdir -p /tmp/torch/hub/checkpoints /tmp/huggingface && chmod -R 777 /tmp
 
-# --- Pre-download the model into the image layer ---
+# Pre-download the model (Uses the fixed script)
 COPY download_model.py .
 RUN python download_model.py
 
-# --- Copy the rest of the app and set final ownership ---
+# Setup handler
 COPY handler.py .
 RUN useradd -m -u 1000 worker && chown -R worker:worker /workspace
 
-# --- Switch to non-root user for security ---
 USER worker
-
 EXPOSE 8000
 CMD ["python", "-u", "handler.py"]
